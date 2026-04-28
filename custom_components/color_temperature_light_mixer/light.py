@@ -35,13 +35,12 @@ from .const import (
     CONF_COLD_LIGHT,
     CONF_COLD_LIGHT_TEMPERATURE_KELVIN,
     CONF_RGBW_CONTROLLER,
-    CONF_SETUP_TYPE,
     CONF_WARM_CHANNEL,
     CONF_WARM_LIGHT,
     CONF_WARM_LIGHT_TEMPERATURE_KELVIN,
     DOMAIN,
     RGBW_CHANNEL_MAP,
-    SETUP_TYPE_RGBW,
+    is_rgbw_config,
 )
 from .helper import (
     BrightnessCalculator,
@@ -57,9 +56,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
 ):
     """Set up the sensor platform."""
-    config = entry.as_dict()["data"]
+    config = {**entry.data, **entry.options}
 
-    if config.get(CONF_SETUP_TYPE) == SETUP_TYPE_RGBW or CONF_RGBW_CONTROLLER in config:
+    if is_rgbw_config(config):
         light = RGBWTemperatureMixerLight(
             name=config[CONF_NAME],
             rgbw_entity_id=config[CONF_RGBW_CONTROLLER],
@@ -453,9 +452,7 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
             warm_brightness = int(rgbw_color[self._warm_channel_index])
             cold_brightness = int(rgbw_color[self._cold_channel_index])
 
-            self._attr_brightness = min(
-                max(warm_brightness, cold_brightness), 255
-            )
+            self._attr_brightness = (warm_brightness + cold_brightness) // 2
             temperature_calc = TemperatureCalculator(
                 warm_brightness,
                 self._warm_temperature_kelvin,

@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 
 from .const import (
     CONF_SETUP_TYPE,
@@ -18,7 +19,10 @@ from .const import (
     _DUAL_LIGHT_SCHEMA,
     _RGBW_SCHEMA,
     _SETUP_TYPE_SCHEMA,
+    _build_dual_light_schema,
+    _build_rgbw_schema,
     is_capitalized,
+    is_rgbw_config,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +38,14 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         super().__init__()
         self._shared_data: dict = {}
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> "CCTVirtualLightOptionsFlow":
+        """Create the options flow (shown via the Configure button)."""
+        return CCTVirtualLightOptionsFlow()
 
     async def async_step_user(
         self,
@@ -109,3 +121,45 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         _LOGGER.debug("Creating a new config entry")
         return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
+
+
+class CCTVirtualLightOptionsFlow(config_entries.OptionsFlow):
+    """Options flow – allows reconfiguring an existing entry via the Configure button."""
+
+    async def async_step_init(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Route to the correct sub-step based on the current setup type."""
+        current = {**self.config_entry.data, **self.config_entry.options}
+        if is_rgbw_config(current):
+            return await self.async_step_rgbw(user_input)
+        return await self.async_step_dual_light(user_input)
+
+    async def async_step_dual_light(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Reconfigure a dual-light entry."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_form(
+            step_id="dual_light",
+            data_schema=_build_dual_light_schema(current),
+        )
+
+    async def async_step_rgbw(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Reconfigure an RGBW entry."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_form(
+            step_id="rgbw",
+            data_schema=_build_rgbw_schema(current),
+        )
