@@ -10,7 +10,16 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_NAME
 
-from .const import _DOMAIN_SCHEMA, DOMAIN, is_capitalized
+from .const import (
+    CONF_SETUP_TYPE,
+    DOMAIN,
+    SETUP_TYPE_DUAL_LIGHT,
+    SETUP_TYPE_RGBW,
+    _DUAL_LIGHT_SCHEMA,
+    _RGBW_SCHEMA,
+    _SETUP_TYPE_SCHEMA,
+    is_capitalized,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,27 +28,62 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for CCT Virtual Light."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
+
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self._shared_data: dict = {}
 
     async def async_step_user(
         self,
         user_input: dict | None = None,
     ) -> ConfigFlowResult:
-        """Handle a flow initialized by the user."""
-
-        if user_input and not is_capitalized(user_input[CONF_NAME]):
-            _LOGGER.debug("Name is not capitalized")
-            errors = {CONF_NAME: "Name must start with a capital letter"}
-            return self.async_show_form(
-                step_id="user", data_schema=vol.Schema(_DOMAIN_SCHEMA), errors=errors
-            )
+        """Handle the first step: collect name and setup type."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
+            if not is_capitalized(user_input[CONF_NAME]):
+                _LOGGER.debug("Name is not capitalized")
+                errors = {CONF_NAME: "Name must start with a capital letter"}
+            else:
+                self._shared_data = dict(user_input)
+                setup_type = user_input.get(CONF_SETUP_TYPE, SETUP_TYPE_DUAL_LIGHT)
+                if setup_type == SETUP_TYPE_RGBW:
+                    return await self.async_step_rgbw()
+                return await self.async_step_dual_light()
 
-        # Ask for information
         return self.async_show_form(
-            step_id="user", data_schema=vol.Schema(_DOMAIN_SCHEMA)
+            step_id="user",
+            data_schema=vol.Schema(_SETUP_TYPE_SCHEMA),
+            errors=errors,
+        )
+
+    async def async_step_dual_light(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Handle the dual-light configuration step."""
+        if user_input is not None:
+            data = {**self._shared_data, **user_input}
+            return self.async_create_entry(title=data[CONF_NAME], data=data)
+
+        return self.async_show_form(
+            step_id="dual_light",
+            data_schema=vol.Schema(_DUAL_LIGHT_SCHEMA),
+        )
+
+    async def async_step_rgbw(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Handle the RGBW controller configuration step."""
+        if user_input is not None:
+            data = {**self._shared_data, **user_input}
+            return self.async_create_entry(title=data[CONF_NAME], data=data)
+
+        return self.async_show_form(
+            step_id="rgbw",
+            data_schema=vol.Schema(_RGBW_SCHEMA),
         )
 
     async def async_step_import(

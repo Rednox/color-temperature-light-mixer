@@ -23,11 +23,34 @@ TEMPERATURE_SENSOR_NAME = "Restored temperature"
 
 DISPATCHER_SIGNAL_TURN_OFF = f"{DOMAIN}_turn_off"
 
-# Configuration
+# Setup types
+CONF_SETUP_TYPE = "setup_type"
+SETUP_TYPE_DUAL_LIGHT = "dual_light"
+SETUP_TYPE_RGBW = "rgbw"
+
+# Dual-light configuration
 CONF_WARM_LIGHT = f"warm_light_{CONF_ENTITY_ID}"
 CONF_WARM_LIGHT_TEMPERATURE_KELVIN = f"warm_light_{ATTR_COLOR_TEMP_KELVIN}"
 CONF_COLD_LIGHT = f"cold_light_{CONF_ENTITY_ID}"
 CONF_COLD_LIGHT_TEMPERATURE_KELVIN = f"cold_light_{ATTR_COLOR_TEMP_KELVIN}"
+
+# RGBW controller configuration
+CONF_RGBW_CONTROLLER = "rgbw_controller_entity_id"
+CONF_WARM_CHANNEL = "warm_channel"
+CONF_COLD_CHANNEL = "cold_channel"
+
+# RGBW channel identifiers and their index inside an RGBW tuple (r, g, b, w)
+RGBW_CHANNEL_RED = "red"
+RGBW_CHANNEL_GREEN = "green"
+RGBW_CHANNEL_BLUE = "blue"
+RGBW_CHANNEL_WHITE = "white"
+
+RGBW_CHANNEL_MAP: dict[str, int] = {
+    RGBW_CHANNEL_RED: 0,
+    RGBW_CHANNEL_GREEN: 1,
+    RGBW_CHANNEL_BLUE: 2,
+    RGBW_CHANNEL_WHITE: 3,
+}
 
 CONF_DEFAULT_WARM_LIGHT_TEMPERATURE = 3000
 CONF_DEFAULT_COLD_LIGHT_TEMPERATURE = 6000
@@ -38,6 +61,60 @@ def is_capitalized(value: str) -> bool:
     return value[0].isupper()
 
 
+# Step 1: choose name and setup type
+_SETUP_TYPE_SCHEMA = {
+    vol.Required(CONF_NAME): cv.string,
+    vol.Required(CONF_SETUP_TYPE, default=SETUP_TYPE_DUAL_LIGHT): selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[SETUP_TYPE_DUAL_LIGHT, SETUP_TYPE_RGBW],
+            mode=selector.SelectSelectorMode.LIST,
+            translation_key=CONF_SETUP_TYPE,
+        )
+    ),
+}
+
+# Step 2a: dual-light setup
+_DUAL_LIGHT_SCHEMA = {
+    vol.Required(CONF_WARM_LIGHT): selector.EntitySelector({"domain": LIGHT_DOMAIN}),
+    vol.Required(
+        CONF_WARM_LIGHT_TEMPERATURE_KELVIN,
+        description={"suggested_value": CONF_DEFAULT_WARM_LIGHT_TEMPERATURE},
+    ): cv.positive_int,
+    vol.Required(CONF_COLD_LIGHT): selector.EntitySelector({"domain": LIGHT_DOMAIN}),
+    vol.Required(
+        CONF_COLD_LIGHT_TEMPERATURE_KELVIN,
+        description={"suggested_value": CONF_DEFAULT_COLD_LIGHT_TEMPERATURE},
+    ): cv.positive_int,
+}
+
+# Step 2b: RGBW controller setup
+_RGBW_SCHEMA = {
+    vol.Required(CONF_RGBW_CONTROLLER): selector.EntitySelector({"domain": LIGHT_DOMAIN}),
+    vol.Required(CONF_WARM_CHANNEL, default=RGBW_CHANNEL_WHITE): selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=list(RGBW_CHANNEL_MAP.keys()),
+            mode=selector.SelectSelectorMode.LIST,
+            translation_key=CONF_WARM_CHANNEL,
+        )
+    ),
+    vol.Required(
+        CONF_WARM_LIGHT_TEMPERATURE_KELVIN,
+        description={"suggested_value": CONF_DEFAULT_WARM_LIGHT_TEMPERATURE},
+    ): cv.positive_int,
+    vol.Required(CONF_COLD_CHANNEL, default=RGBW_CHANNEL_BLUE): selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=list(RGBW_CHANNEL_MAP.keys()),
+            mode=selector.SelectSelectorMode.LIST,
+            translation_key=CONF_COLD_CHANNEL,
+        )
+    ),
+    vol.Required(
+        CONF_COLD_LIGHT_TEMPERATURE_KELVIN,
+        description={"suggested_value": CONF_DEFAULT_COLD_LIGHT_TEMPERATURE},
+    ): cv.positive_int,
+}
+
+# Legacy combined schema kept for YAML import compatibility
 _DOMAIN_SCHEMA = {
     vol.Required(CONF_NAME): cv.string,
     vol.Required(CONF_WARM_LIGHT): selector.EntitySelector({"domain": LIGHT_DOMAIN}),
