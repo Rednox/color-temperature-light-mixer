@@ -2,21 +2,107 @@
     "config": {
         "step": {
             "user": {
-                "description": "Combine two lights of different color temperatures into a single light entity",
+                "description": "Choose the name and setup type for your color temperature mixer",
                 "data": {
                     "name": "Name",
+                    "setup_type": "Setup type"
+                },
+                "data_description": {
+                    "name": "The name of the light",
+                    "setup_type": "Select 'Dual light' to use two separate light entities (warm and cold), or 'RGBW controller' to use a single RGBW controller (e.g. Shelly RGBW2) with configurable channel mapping"
+                }
+            },
+            "dual_light": {
+                "description": "Configure the two lights that represent the warm and cold light channels",
+                "data": {
                     "warm_light_entity_id": "Warm light",
                     "warm_light_color_temp_kelvin": "Warm light color temperature (K)",
                     "cold_light_entity_id": "Cold light",
                     "cold_light_color_temp_kelvin": "Cold light color temperature (K)"
                 },
                 "data_description": {
-                  "name": "The name of the light",
-                  "warm_light_entity_id": "Light acting as the warmer light source (yellow-ish color)",
-                  "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
-                  "cold_light_entity_id": "Light acting as the colder light source (blu-ish color)",
-                  "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
-              }
+                    "warm_light_entity_id": "Light acting as the warmer light source (yellow-ish color)",
+                    "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
+                    "cold_light_entity_id": "Light acting as the colder light source (blue-ish color)",
+                    "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
+                }
+            },
+            "rgbw": {
+                "description": "Configure the RGBW controller and the channel mapping for warm and cold light",
+                "data": {
+                    "rgbw_controller_entity_id": "RGBW controller",
+                    "warm_channel": "Warm light channel",
+                    "warm_light_color_temp_kelvin": "Warm light color temperature (K)",
+                    "cold_channel": "Cold light channel",
+                    "cold_light_color_temp_kelvin": "Cold light color temperature (K)"
+                },
+                "data_description": {
+                    "rgbw_controller_entity_id": "The RGBW controller entity (e.g. Shelly RGBW2)",
+                    "warm_channel": "RGBW channel connected to the warm (yellow-ish) light, e.g. 'white'",
+                    "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
+                    "cold_channel": "RGBW channel connected to the cold (blue-ish) light, e.g. 'blue'",
+                    "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
+                }
+            }
+        },
+        "selector": {
+            "setup_type": {
+                "options": {
+                    "dual_light": "Dual light",
+                    "rgbw": "RGBW controller"
+                }
+            },
+            "warm_channel": {
+                "options": {
+                    "red": "Red",
+                    "green": "Green",
+                    "blue": "Blue",
+                    "white": "White"
+                }
+            },
+            "cold_channel": {
+                "options": {
+                    "red": "Red",
+                    "green": "Green",
+                    "blue": "Blue",
+                    "white": "White"
+                }
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "dual_light": {
+                "description": "Update the warm and cold light configuration",
+                "data": {
+                    "warm_light_entity_id": "Warm light",
+                    "warm_light_color_temp_kelvin": "Warm light color temperature (K)",
+                    "cold_light_entity_id": "Cold light",
+                    "cold_light_color_temp_kelvin": "Cold light color temperature (K)"
+                },
+                "data_description": {
+                    "warm_light_entity_id": "Light acting as the warmer light source (yellow-ish color)",
+                    "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
+                    "cold_light_entity_id": "Light acting as the colder light source (blue-ish color)",
+                    "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
+                }
+            },
+            "rgbw": {
+                "description": "Update the RGBW controller and channel mapping",
+                "data": {
+                    "rgbw_controller_entity_id": "RGBW controller",
+                    "warm_channel": "Warm light channel",
+                    "warm_light_color_temp_kelvin": "Warm light color temperature (K)",
+                    "cold_channel": "Cold light channel",
+                    "cold_light_color_temp_kelvin": "Cold light color temperature (K)"
+                },
+                "data_description": {
+                    "rgbw_controller_entity_id": "The RGBW controller entity (e.g. Shelly RGBW2)",
+                    "warm_channel": "RGBW channel connected to the warm (yellow-ish) light, e.g. 'white'",
+                    "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
+                    "cold_channel": "RGBW channel connected to the cold (blue-ish) light, e.g. 'blue'",
+                    "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
+                }
             }
         }
     }
