@@ -59,7 +59,7 @@ async def async_setup_entry(
     """Set up the sensor platform."""
     config = entry.as_dict()["data"]
 
-    if config.get(CONF_SETUP_TYPE) == SETUP_TYPE_RGBW:
+    if config.get(CONF_SETUP_TYPE) == SETUP_TYPE_RGBW or CONF_RGBW_CONTROLLER in config:
         light = RGBWTemperatureMixerLight(
             name=config[CONF_NAME],
             rgbw_entity_id=config[CONF_RGBW_CONTROLLER],

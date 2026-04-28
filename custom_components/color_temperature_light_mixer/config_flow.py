@@ -32,6 +32,7 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialize the config flow."""
+        super().__init__()
         self._shared_data: dict = {}
 
     async def async_step_user(
@@ -65,6 +66,8 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the dual-light configuration step."""
         if user_input is not None:
             data = {**self._shared_data, **user_input}
+            # Explicitly stamp the setup type so it is always present in the stored entry
+            data[CONF_SETUP_TYPE] = SETUP_TYPE_DUAL_LIGHT
             return self.async_create_entry(title=data[CONF_NAME], data=data)
 
         return self.async_show_form(
@@ -79,6 +82,8 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the RGBW controller configuration step."""
         if user_input is not None:
             data = {**self._shared_data, **user_input}
+            # Explicitly stamp the setup type so it is always present in the stored entry
+            data[CONF_SETUP_TYPE] = SETUP_TYPE_RGBW
             return self.async_create_entry(title=data[CONF_NAME], data=data)
 
         return self.async_show_form(
