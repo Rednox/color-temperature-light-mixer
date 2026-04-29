@@ -13,9 +13,6 @@ from homeassistant.util.color import (
 _LOGGER = logging.getLogger(__name__)
 BRIGHTNESS_RANGE = (1, 255)
 
-_LOGGER = logging.getLogger(__name__)
-BRIGHTNESS_RANGE = (1, 255)
-
 
 class BrightnessTemperaturePriority(StrEnum):
     """Enum that indicates what to prefer in the computation of the target brightness required to (temperature, brightness) target tuple."""
