@@ -47,6 +47,7 @@ from .helper import (
     BrightnessTemperaturePriority,
     TemperatureCalculator,
     TurnOnSettings,
+    compute_rgbw_channel_brightnesses,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -452,7 +453,7 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
             warm_brightness = int(rgbw_color[self._warm_channel_index])
             cold_brightness = int(rgbw_color[self._cold_channel_index])
 
-            self._attr_brightness = (warm_brightness + cold_brightness) // 2
+            self._attr_brightness = max(warm_brightness, cold_brightness)
             temperature_calc = TemperatureCalculator(
                 warm_brightness,
                 self._warm_temperature_kelvin,
@@ -473,16 +474,13 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
         target_brightness = kwargs.get(ATTR_BRIGHTNESS)
         target_temp_kelvin = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
 
-        priority = BrightnessTemperaturePriority.MIXED
         if not any([target_brightness, target_temp_kelvin]):
             target_brightness = self.brightness
             target_temp_kelvin = self.color_temp_kelvin
         elif target_brightness is None:
             target_brightness = self.brightness
-            priority = BrightnessTemperaturePriority.TEMPERATURE
         elif target_temp_kelvin is None:
             target_temp_kelvin = self.color_temp_kelvin
-            priority = BrightnessTemperaturePriority.BRIGHTNESS
 
         if target_brightness is None:
             target_brightness = self.previous_turn_on_state.get(ATTR_BRIGHTNESS)
@@ -519,14 +517,12 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
             max(target_temp_kelvin, self._warm_temperature_kelvin),
         )
 
-        brightness_calculator = BrightnessCalculator(
+        ww_brightness, cw_brightness = compute_rgbw_channel_brightnesses(
             self._warm_temperature_kelvin,
             self._cold_temperature_kelvin,
             target_temp_kelvin,  # type: ignore
             target_brightness,  # type: ignore
-            priority,
         )
-        ww_brightness, cw_brightness = brightness_calculator.compute_brightnesses()
 
         # Build the RGBW tuple: set computed values in the warm/cold channel slots
         rgbw: list[int] = [0, 0, 0, 0]

@@ -13,6 +13,9 @@ from homeassistant.util.color import (
 _LOGGER = logging.getLogger(__name__)
 BRIGHTNESS_RANGE = (1, 255)
 
+_LOGGER = logging.getLogger(__name__)
+BRIGHTNESS_RANGE = (1, 255)
+
 
 class BrightnessTemperaturePriority(StrEnum):
     """Enum that indicates what to prefer in the computation of the target brightness required to (temperature, brightness) target tuple."""
@@ -254,3 +257,59 @@ class BrightnessCalculator:
                 closest_temperature_mired, best_distance = x, d
 
         return closest_temperature_mired, brightness_value(closest_temperature_mired)
+
+
+def compute_rgbw_channel_brightnesses(
+    warm_temperature_kelvin: int,
+    cold_temperature_kelvin: int,
+    target_temperature_kelvin: int,
+    target_brightness: int,
+) -> tuple[int, int]:
+    """Compute warm and cold channel values for an RGBW light given a target temperature and brightness.
+
+    Brightness is defined as ``max(warm_channel, cold_channel)``, so the dominant
+    channel is always equal to ``target_brightness``.  This keeps brightness and
+    temperature orthogonal controls: changing one never affects the other, and
+    the dimmer always reflects how bright the light is relative to its maximum
+    at the current colour temperature.
+
+    The mixing ratio is derived from the mired-space weighted average used by
+    ``rgbww_to_color_temperature``:
+
+        target_mired = (warm_mired * warm + cold_mired * cold) / (warm + cold)
+
+    Solving with ``max(warm, cold) = target_brightness`` gives:
+
+        warm = target_brightness * w_ratio / max_ratio
+        cold = target_brightness * c_ratio / max_ratio
+
+    where ``w_ratio`` and ``c_ratio`` are the normalised weights and
+    ``max_ratio = max(w_ratio, c_ratio)``.
+
+    Returns:
+        (warm_brightness, cold_brightness) in the range 0..target_brightness
+
+    """
+    target_mired = color_temperature_kelvin_to_mired(target_temperature_kelvin)
+    warm_mired = color_temperature_kelvin_to_mired(warm_temperature_kelvin)
+    cold_mired = color_temperature_kelvin_to_mired(cold_temperature_kelvin)
+
+    denom = cold_mired - warm_mired  # negative (cold_mired < warm_mired)
+    w_ratio = (cold_mired - target_mired) / denom  # fraction in [0, 1]
+    c_ratio = (target_mired - warm_mired) / denom  # fraction in [0, 1]
+
+    # max_ratio is always in [0.5, 1] since w_ratio + c_ratio == 1
+    max_ratio = max(w_ratio, c_ratio)
+
+    warm_brightness = round(target_brightness * w_ratio / max_ratio)
+    cold_brightness = round(target_brightness * c_ratio / max_ratio)
+
+    _LOGGER.debug(
+        "RGBW channel brightness: warm=%d, cold=%d (target_brightness=%d, target_temp=%dK)",
+        warm_brightness,
+        cold_brightness,
+        target_brightness,
+        target_temperature_kelvin,
+    )
+
+    return warm_brightness, cold_brightness
