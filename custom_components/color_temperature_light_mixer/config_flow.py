@@ -12,15 +12,24 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 
 from .const import (
+    CONF_CCT_CALIBRATION,
+    CONF_COLD_LIGHT_TEMPERATURE_KELVIN,
+    CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+    CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
     CONF_SETUP_TYPE,
+    CONF_WARM_LIGHT_TEMPERATURE_KELVIN,
     DOMAIN,
     SETUP_TYPE_DUAL_LIGHT,
     SETUP_TYPE_RGBW,
     _DUAL_LIGHT_SCHEMA,
     _RGBW_SCHEMA,
     _SETUP_TYPE_SCHEMA,
+    _build_cct_calibration_schema,
     _build_dual_light_schema,
     _build_rgbw_schema,
+    calibration_to_flat,
+    default_calibration_points,
+    flat_to_calibration,
     is_capitalized,
     is_rgbw_config,
 )
@@ -43,7 +52,7 @@ class CCTVirtuaLightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> "CCTVirtualLightOptionsFlow":
+    ) -> CCTVirtualLightOptionsFlow:
         """Create the options flow (shown via the Configure button)."""
         return CCTVirtualLightOptionsFlow()
 
@@ -130,7 +139,17 @@ class CCTVirtualLightOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict | None = None,
     ) -> ConfigFlowResult:
-        """Route to the correct sub-step based on the current setup type."""
+        """Show a menu to choose between hardware settings and advanced CCT calibration."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["hardware_settings", "cct_calibration"],
+        )
+
+    async def async_step_hardware_settings(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Route to the correct hardware-settings sub-step based on the current setup type."""
         current = {**self.config_entry.data, **self.config_entry.options}
         if is_rgbw_config(current):
             return await self.async_step_rgbw(user_input)
@@ -140,9 +159,11 @@ class CCTVirtualLightOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict | None = None,
     ) -> ConfigFlowResult:
-        """Reconfigure a dual-light entry."""
+        """Reconfigure a dual-light entry, preserving any existing calibration data."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Merge with existing options so CCT calibration is not lost
+            new_options = {**self.config_entry.options, **user_input}
+            return self.async_create_entry(title="", data=new_options)
 
         current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
@@ -154,12 +175,42 @@ class CCTVirtualLightOptionsFlow(config_entries.OptionsFlow):
         self,
         user_input: dict | None = None,
     ) -> ConfigFlowResult:
-        """Reconfigure an RGBW entry."""
+        """Reconfigure an RGBW entry, preserving any existing calibration data."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Merge with existing options so CCT calibration is not lost
+            new_options = {**self.config_entry.options, **user_input}
+            return self.async_create_entry(title="", data=new_options)
 
         current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
             step_id="rgbw",
             data_schema=_build_rgbw_schema(current),
+        )
+
+    async def async_step_cct_calibration(
+        self,
+        user_input: dict | None = None,
+    ) -> ConfigFlowResult:
+        """Configure advanced CCT calibration points."""
+        if user_input is not None:
+            calibration = flat_to_calibration(user_input)
+            new_options = {**self.config_entry.options, CONF_CCT_CALIBRATION: calibration}
+            return self.async_create_entry(title="", data=new_options)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        warm_k = current.get(
+            CONF_WARM_LIGHT_TEMPERATURE_KELVIN, CONF_DEFAULT_WARM_LIGHT_TEMPERATURE
+        )
+        cold_k = current.get(
+            CONF_COLD_LIGHT_TEMPERATURE_KELVIN, CONF_DEFAULT_COLD_LIGHT_TEMPERATURE
+        )
+        existing_calibration: list[dict] | None = current.get(CONF_CCT_CALIBRATION)
+        if existing_calibration:
+            defaults = calibration_to_flat(existing_calibration)
+        else:
+            defaults = calibration_to_flat(default_calibration_points(warm_k, cold_k))
+
+        return self.async_show_form(
+            step_id="cct_calibration",
+            data_schema=_build_cct_calibration_schema(defaults),
         )

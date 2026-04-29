@@ -31,6 +31,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CONF_CCT_CALIBRATION,
     CONF_COLD_CHANNEL,
     CONF_COLD_LIGHT,
     CONF_COLD_LIGHT_TEMPERATURE_KELVIN,
@@ -47,6 +48,7 @@ from .helper import (
     BrightnessTemperaturePriority,
     TemperatureCalculator,
     TurnOnSettings,
+    compute_brightnesses_from_calibration,
     compute_rgbw_channel_brightnesses,
 )
 
@@ -68,6 +70,7 @@ async def async_setup_entry(
             warm_temperature_kelvin=config[CONF_WARM_LIGHT_TEMPERATURE_KELVIN],
             cold_temperature_kelvin=config[CONF_COLD_LIGHT_TEMPERATURE_KELVIN],
             config_id=entry.entry_id,
+            cct_calibration=config.get(CONF_CCT_CALIBRATION),
         )
     else:
         light = TemperatureMixerLight(
@@ -81,6 +84,7 @@ async def async_setup_entry(
                 ATTR_COLOR_TEMP_KELVIN: config[CONF_COLD_LIGHT_TEMPERATURE_KELVIN],
             },
             config_id=entry.entry_id,
+            cct_calibration=config.get(CONF_CCT_CALIBRATION),
         )
 
     async_add_devices([light])
@@ -98,6 +102,7 @@ class TemperatureMixerLight(LightGroup, RestoreSensor):
         warm_light: dict[str, Any],
         cold_light: dict[str, Any],
         config_id: str,
+        cct_calibration: list[dict] | None = None,
     ) -> None:
         """Initialize the CCT light."""
         self._attr_unique_id = config_id
@@ -120,6 +125,7 @@ class TemperatureMixerLight(LightGroup, RestoreSensor):
         self.warm_light = warm_light
         self.cold_light = cold_light
         self.config_id = config_id
+        self._cct_calibration = cct_calibration
 
         # Initialize previous state to empty dict to avoid None
         self.previous_turn_on_state = {}
@@ -282,14 +288,27 @@ class TemperatureMixerLight(LightGroup, RestoreSensor):
             max(target_temp_kelvin, self.warm_light[ATTR_COLOR_TEMP_KELVIN]),
         )
 
-        brightness_calculator = BrightnessCalculator(
-            self.min_color_temp_kelvin,
-            self.max_color_temp_kelvin,
-            target_temp_kelvin,  # type: ignore
-            target_brightness,  # type: ignore
-            priority,
-        )
-        ww_brightness, cw_brightness = brightness_calculator.compute_brightnesses()
+        if self._cct_calibration:
+            _LOGGER.debug(
+                "%s: using CCT calibration for temp=%d, brightness=%d",
+                self._friendly_name(),
+                target_temp_kelvin,
+                target_brightness,
+            )
+            ww_brightness, cw_brightness = compute_brightnesses_from_calibration(
+                self._cct_calibration,
+                target_temp_kelvin,  # type: ignore
+                target_brightness,  # type: ignore
+            )
+        else:
+            brightness_calculator = BrightnessCalculator(
+                self.min_color_temp_kelvin,
+                self.max_color_temp_kelvin,
+                target_temp_kelvin,  # type: ignore
+                target_brightness,  # type: ignore
+                priority,
+            )
+            ww_brightness, cw_brightness = brightness_calculator.compute_brightnesses()
 
         # Personalize the service data with the light-specific brightness
         ww_settings = TurnOnSettings(
@@ -375,6 +394,7 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
         warm_temperature_kelvin: int,
         cold_temperature_kelvin: int,
         config_id: str,
+        cct_calibration: list[dict] | None = None,
     ) -> None:
         """Initialize the RGBW temperature mixer light."""
         self._attr_unique_id = config_id
@@ -395,6 +415,7 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
         self._warm_temperature_kelvin = warm_temperature_kelvin
         self._cold_temperature_kelvin = cold_temperature_kelvin
         self.config_id = config_id
+        self._cct_calibration = cct_calibration
 
         self._attr_min_color_temp_kelvin = warm_temperature_kelvin
         self._attr_max_color_temp_kelvin = cold_temperature_kelvin
@@ -517,12 +538,25 @@ class RGBWTemperatureMixerLight(LightGroup, RestoreSensor):
             max(target_temp_kelvin, self._warm_temperature_kelvin),
         )
 
-        ww_brightness, cw_brightness = compute_rgbw_channel_brightnesses(
-            self._warm_temperature_kelvin,
-            self._cold_temperature_kelvin,
-            target_temp_kelvin,  # type: ignore
-            target_brightness,  # type: ignore
-        )
+        if self._cct_calibration:
+            _LOGGER.debug(
+                "%s: using CCT calibration for temp=%d, brightness=%d",
+                self._friendly_name(),
+                target_temp_kelvin,
+                target_brightness,
+            )
+            ww_brightness, cw_brightness = compute_brightnesses_from_calibration(
+                self._cct_calibration,
+                target_temp_kelvin,  # type: ignore
+                target_brightness,  # type: ignore
+            )
+        else:
+            ww_brightness, cw_brightness = compute_rgbw_channel_brightnesses(
+                self._warm_temperature_kelvin,
+                self._cold_temperature_kelvin,
+                target_temp_kelvin,  # type: ignore
+                target_brightness,  # type: ignore
+            )
 
         # Build the RGBW tuple: set computed values in the warm/cold channel slots
         rgbw: list[int] = [0, 0, 0, 0]

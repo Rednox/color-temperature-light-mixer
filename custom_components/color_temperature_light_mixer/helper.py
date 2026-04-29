@@ -10,6 +10,8 @@ from homeassistant.util.color import (
     rgbww_to_color_temperature,
 )
 
+from .const import CONF_CCT_CAL_COLD_PCT, CONF_CCT_CAL_TEMP, CONF_CCT_CAL_WARM_PCT
+
 _LOGGER = logging.getLogger(__name__)
 BRIGHTNESS_RANGE = (1, 255)
 
@@ -307,6 +309,88 @@ def compute_rgbw_channel_brightnesses(
         cold_brightness,
         target_brightness,
         target_temperature_kelvin,
+    )
+
+    return warm_brightness, cold_brightness
+
+
+def compute_brightnesses_from_calibration(
+    calibration: list[dict],
+    target_temp_kelvin: int,
+    target_brightness: int,
+) -> tuple[int, int]:
+    """Compute warm and cold channel brightnesses using CCT calibration points.
+
+    Each calibration point is a dict with keys:
+      - ``CONF_CCT_CAL_TEMP``     – reference temperature in Kelvin
+      - ``CONF_CCT_CAL_WARM_PCT`` – warm channel weight (0–100)
+      - ``CONF_CCT_CAL_COLD_PCT`` – cold channel weight (0–100)
+
+    The warm/cold ratio is interpolated linearly in mired space between the two
+    surrounding calibration points.  The dominant channel is always scaled to
+    *target_brightness* so that brightness and temperature remain orthogonal
+    controls (consistent with :func:`compute_rgbw_channel_brightnesses`).
+
+    Returns:
+        (warm_brightness, cold_brightness) both in 0..target_brightness
+
+    """
+    if not calibration:
+        raise ValueError("calibration must not be empty")
+
+    # Sort ascending by temperature
+    sorted_cal = sorted(calibration, key=lambda p: p[CONF_CCT_CAL_TEMP])
+
+    # Clamp target to the calibration range
+    target_temp_kelvin = max(
+        sorted_cal[0][CONF_CCT_CAL_TEMP],
+        min(sorted_cal[-1][CONF_CCT_CAL_TEMP], target_temp_kelvin),
+    )
+
+    # Find the pair of surrounding calibration points
+    lower = sorted_cal[0]
+    upper = sorted_cal[-1]
+    for i in range(len(sorted_cal) - 1):
+        if (
+            sorted_cal[i][CONF_CCT_CAL_TEMP]
+            <= target_temp_kelvin
+            <= sorted_cal[i + 1][CONF_CCT_CAL_TEMP]
+        ):
+            lower = sorted_cal[i]
+            upper = sorted_cal[i + 1]
+            break
+
+    if lower[CONF_CCT_CAL_TEMP] == upper[CONF_CCT_CAL_TEMP]:
+        # Exactly on a calibration point
+        warm_pct = float(lower[CONF_CCT_CAL_WARM_PCT])
+        cold_pct = float(lower[CONF_CCT_CAL_COLD_PCT])
+    else:
+        # Linear interpolation in mired space
+        target_mired = color_temperature_kelvin_to_mired(target_temp_kelvin)
+        lower_mired = color_temperature_kelvin_to_mired(lower[CONF_CCT_CAL_TEMP])
+        upper_mired = color_temperature_kelvin_to_mired(upper[CONF_CCT_CAL_TEMP])
+        # t == 0 → lower point, t == 1 → upper point
+        t = (target_mired - lower_mired) / (upper_mired - lower_mired)
+        warm_pct = lower[CONF_CCT_CAL_WARM_PCT] + t * (
+            upper[CONF_CCT_CAL_WARM_PCT] - lower[CONF_CCT_CAL_WARM_PCT]
+        )
+        cold_pct = lower[CONF_CCT_CAL_COLD_PCT] + t * (
+            upper[CONF_CCT_CAL_COLD_PCT] - lower[CONF_CCT_CAL_COLD_PCT]
+        )
+
+    max_pct = max(warm_pct, cold_pct)
+    if max_pct == 0:
+        return 0, 0
+
+    warm_brightness = round(target_brightness * warm_pct / max_pct)
+    cold_brightness = round(target_brightness * cold_pct / max_pct)
+
+    _LOGGER.debug(
+        "Calibration brightness: warm=%d, cold=%d (target_brightness=%d, target_temp=%dK)",
+        warm_brightness,
+        cold_brightness,
+        target_brightness,
+        target_temp_kelvin,
     )
 
     return warm_brightness, cold_brightness

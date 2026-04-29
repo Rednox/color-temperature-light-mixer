@@ -55,6 +55,13 @@ RGBW_CHANNEL_MAP: dict[str, int] = {
 CONF_DEFAULT_WARM_LIGHT_TEMPERATURE = 3000
 CONF_DEFAULT_COLD_LIGHT_TEMPERATURE = 6000
 
+# Advanced CCT calibration
+CONF_CCT_CALIBRATION = "cct_calibration"
+CONF_CCT_CAL_TEMP = "temperature_kelvin"
+CONF_CCT_CAL_WARM_PCT = "warm_pct"
+CONF_CCT_CAL_COLD_PCT = "cold_pct"
+CCT_CALIBRATION_POINT_COUNT = 5
+
 
 def is_capitalized(value: str) -> bool:
     """Check if the word is capitalized."""
@@ -218,3 +225,118 @@ _DOMAIN_SCHEMA = {
     ): cv.positive_int,
 }
 """Schema of each CCT virtual light"""
+
+
+# ---------------------------------------------------------------------------
+# Advanced CCT calibration helpers
+# ---------------------------------------------------------------------------
+
+def _cct_field(point_index: int, name: str) -> str:
+    """Return the flat form field name for calibration point ``point_index`` (1-based)."""
+    return f"cct_cal_{point_index}_{name}"
+
+
+def default_calibration_points(warm_k: int, cold_k: int) -> list[dict]:
+    """Return 5 calibration points that reproduce the linear mired interpolation.
+
+    The returned list spans from *warm_k* (100 % warm, 0 % cold) to *cold_k*
+    (0 % warm, 100 % cold) in equal mired steps.  Using these defaults leaves
+    the mixing behaviour completely unchanged compared to the built-in formula.
+    """
+    warm_mired = 1_000_000 / warm_k
+    cold_mired = 1_000_000 / cold_k
+    points: list[dict] = []
+    for i in range(CCT_CALIBRATION_POINT_COUNT):
+        frac = i / (CCT_CALIBRATION_POINT_COUNT - 1)
+        mired = warm_mired + frac * (cold_mired - warm_mired)
+        kelvin = round(1_000_000 / mired)
+        warm_pct = round((1.0 - frac) * 100)
+        cold_pct = round(frac * 100)
+        points.append(
+            {
+                CONF_CCT_CAL_TEMP: kelvin,
+                CONF_CCT_CAL_WARM_PCT: warm_pct,
+                CONF_CCT_CAL_COLD_PCT: cold_pct,
+            }
+        )
+    return points
+
+
+def calibration_to_flat(calibration: list[dict]) -> dict:
+    """Convert a stored calibration list to flat form-field key/value pairs."""
+    result: dict = {}
+    for i, point in enumerate(calibration, 1):
+        result[_cct_field(i, "temp")] = point[CONF_CCT_CAL_TEMP]
+        result[_cct_field(i, "warm")] = point[CONF_CCT_CAL_WARM_PCT]
+        result[_cct_field(i, "cold")] = point[CONF_CCT_CAL_COLD_PCT]
+    return result
+
+
+def flat_to_calibration(form_data: dict) -> list[dict]:
+    """Convert flat form-field data back to the stored calibration list.
+
+    Points are sorted by ascending temperature so that interpolation is
+    straightforward regardless of the order in which the user entered them.
+    """
+    points: list[dict] = []
+    for i in range(1, CCT_CALIBRATION_POINT_COUNT + 1):
+        temp = int(form_data.get(_cct_field(i, "temp"), 0))
+        warm = max(0, min(100, int(form_data.get(_cct_field(i, "warm"), 0))))
+        cold = max(0, min(100, int(form_data.get(_cct_field(i, "cold"), 0))))
+        points.append(
+            {
+                CONF_CCT_CAL_TEMP: temp,
+                CONF_CCT_CAL_WARM_PCT: warm,
+                CONF_CCT_CAL_COLD_PCT: cold,
+            }
+        )
+    return sorted(points, key=lambda p: p[CONF_CCT_CAL_TEMP])
+
+
+def _build_cct_calibration_schema(defaults: dict) -> vol.Schema:
+    """Build the CCT calibration schema pre-populated with *defaults*."""
+    fields: dict = {}
+    for i in range(1, CCT_CALIBRATION_POINT_COUNT + 1):
+        fields[
+            vol.Required(
+                _cct_field(i, "temp"),
+                default=defaults.get(_cct_field(i, "temp"), 2700),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=1000,
+                max=10000,
+                step=50,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="K",
+            )
+        )
+        fields[
+            vol.Required(
+                _cct_field(i, "warm"),
+                default=defaults.get(_cct_field(i, "warm"), 50),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=100,
+                step=1,
+                mode=selector.NumberSelectorMode.SLIDER,
+                unit_of_measurement="%",
+            )
+        )
+        fields[
+            vol.Required(
+                _cct_field(i, "cold"),
+                default=defaults.get(_cct_field(i, "cold"), 50),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=100,
+                step=1,
+                mode=selector.NumberSelectorMode.SLIDER,
+                unit_of_measurement="%",
+            )
+        )
+    return vol.Schema(fields)

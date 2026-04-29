@@ -72,6 +72,12 @@
     },
     "options": {
         "step": {
+            "init": {
+                "menu_options": {
+                    "hardware_settings": "Configure hardware settings",
+                    "cct_calibration": "Configure advanced CCT calibration"
+                }
+            },
             "dual_light": {
                 "description": "Update the warm and cold light configuration",
                 "data": {
@@ -102,6 +108,43 @@
                     "warm_light_color_temp_kelvin": "Color temperature of the warm light source (in Kelvin)",
                     "cold_channel": "RGBW channel connected to the cold (blue-ish) light, e.g. 'blue'",
                     "cold_light_color_temp_kelvin": "Color temperature of the cold light source (in Kelvin)"
+                }
+            },
+            "cct_calibration": {
+                "description": "Define up to 5 reference temperature points and the corresponding warm/cold channel mix for your specific LED chip. The values are brightness-independent ratios: both fields can be 0–100 and the dominant channel is always scaled to the target brightness. Use the defaults if you are unsure — they reproduce the built-in linear formula.",
+                "data": {
+                    "cct_cal_1_temp": "Point 1 – Temperature (K)",
+                    "cct_cal_1_warm": "Point 1 – Warm channel (%)",
+                    "cct_cal_1_cold": "Point 1 – Cold channel (%)",
+                    "cct_cal_2_temp": "Point 2 – Temperature (K)",
+                    "cct_cal_2_warm": "Point 2 – Warm channel (%)",
+                    "cct_cal_2_cold": "Point 2 – Cold channel (%)",
+                    "cct_cal_3_temp": "Point 3 – Temperature (K)",
+                    "cct_cal_3_warm": "Point 3 – Warm channel (%)",
+                    "cct_cal_3_cold": "Point 3 – Cold channel (%)",
+                    "cct_cal_4_temp": "Point 4 – Temperature (K)",
+                    "cct_cal_4_warm": "Point 4 – Warm channel (%)",
+                    "cct_cal_4_cold": "Point 4 – Cold channel (%)",
+                    "cct_cal_5_temp": "Point 5 – Temperature (K)",
+                    "cct_cal_5_warm": "Point 5 – Warm channel (%)",
+                    "cct_cal_5_cold": "Point 5 – Cold channel (%)"
+                },
+                "data_description": {
+                    "cct_cal_1_temp": "Reference color temperature for calibration point 1 (in Kelvin)",
+                    "cct_cal_1_warm": "Warm channel weight at this temperature (0 = off, 100 = maximum warm)",
+                    "cct_cal_1_cold": "Cold channel weight at this temperature (0 = off, 100 = maximum cold)",
+                    "cct_cal_2_temp": "Reference color temperature for calibration point 2 (in Kelvin)",
+                    "cct_cal_2_warm": "Warm channel weight at this temperature",
+                    "cct_cal_2_cold": "Cold channel weight at this temperature",
+                    "cct_cal_3_temp": "Reference color temperature for calibration point 3 (in Kelvin) – typically the neutral white point",
+                    "cct_cal_3_warm": "Warm channel weight at this temperature",
+                    "cct_cal_3_cold": "Cold channel weight at this temperature",
+                    "cct_cal_4_temp": "Reference color temperature for calibration point 4 (in Kelvin)",
+                    "cct_cal_4_warm": "Warm channel weight at this temperature",
+                    "cct_cal_4_cold": "Cold channel weight at this temperature",
+                    "cct_cal_5_temp": "Reference color temperature for calibration point 5 (in Kelvin)",
+                    "cct_cal_5_warm": "Warm channel weight at this temperature",
+                    "cct_cal_5_cold": "Cold channel weight at this temperature"
                 }
             }
         }
