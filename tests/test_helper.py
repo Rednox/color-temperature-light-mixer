@@ -8,6 +8,7 @@ from custom_components.color_temperature_light_mixer.helper import (
     BRIGHTNESS_RANGE,
     BrightnessCalculator,
     BrightnessTemperaturePriority,
+    compute_rgbw_channel_brightnesses,
 )
 from homeassistant.util.color import (
     color_temperature_kelvin_to_mired,
@@ -210,3 +211,118 @@ class TestBrightnessCalculator:
 
         assert ww == 65
         assert cw == 255
+
+
+class TestComputeRgbwChannelBrightnesses:
+    """Test the compute_rgbw_channel_brightnesses helper."""
+
+    def test_warm_temperature_full_brightness(self):
+        """At warm temperature the warm channel should be at target brightness, cold at 0."""
+        ww, cw = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            BRIGHTNESS_RANGE[1],
+        )
+        assert ww == BRIGHTNESS_RANGE[1]
+        assert cw == 0
+
+    def test_cold_temperature_full_brightness(self):
+        """At cold temperature the cold channel should be at target brightness, warm at 0."""
+        ww, cw = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            BRIGHTNESS_RANGE[1],
+        )
+        assert ww == 0
+        assert cw == BRIGHTNESS_RANGE[1]
+
+    def test_midpoint_temperature_full_brightness(self):
+        """At the mired midpoint both channels should equal target brightness."""
+        warm_mired = color_temperature_kelvin_to_mired(CONF_DEFAULT_WARM_LIGHT_TEMPERATURE)
+        cold_mired = color_temperature_kelvin_to_mired(CONF_DEFAULT_COLD_LIGHT_TEMPERATURE)
+        mid_kelvin = color_temperature_mired_to_kelvin((warm_mired + cold_mired) / 2)
+
+        ww, cw = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            mid_kelvin,
+            BRIGHTNESS_RANGE[1],
+        )
+        # Both channels should be at or very near target brightness at midpoint temperature
+        assert max(ww, cw) == BRIGHTNESS_RANGE[1]
+        assert min(ww, cw) >= BRIGHTNESS_RANGE[1] - 3
+
+    def test_brightness_is_max_of_channels(self):
+        """max(warm, cold) must equal target_brightness for any temperature."""
+        target_brightness = 200
+        for temp in [3000, 3500, 4000, 4500, 5000, 5500, 6000]:
+            ww, cw = compute_rgbw_channel_brightnesses(
+                CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+                CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+                temp,
+                target_brightness,
+            )
+            assert max(ww, cw) == target_brightness, (
+                f"max channel {max(ww, cw)} != target_brightness {target_brightness} at {temp}K"
+            )
+
+    def test_dimmer_change_preserves_temperature_ratio(self):
+        """Changing brightness must not change the warm-to-cold ratio (i.e. temperature).
+
+        This is the fix for: 'setting the dimmer from 20% to 100% sets both channels
+        to 100% regardless of temperature'.
+        """
+        target_temp = 3500  # warm-biased temperature
+
+        ww_low, cw_low = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            target_temp,
+            51,  # ~20 % brightness
+        )
+        ww_high, cw_high = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            target_temp,
+            BRIGHTNESS_RANGE[1],  # 100 % brightness
+        )
+
+        # At 100 % the dominant channel must be 255, NOT both channels 255
+        assert ww_high == BRIGHTNESS_RANGE[1]
+        assert cw_high < BRIGHTNESS_RANGE[1]
+
+        # The warm/cold ratio must be the same at both brightness levels
+        ratio_low = ww_low / (ww_low + cw_low)
+        ratio_high = ww_high / (ww_high + cw_high)
+        assert abs(ratio_low - ratio_high) < 0.01
+
+    def test_temperature_change_preserves_brightness(self):
+        """Changing temperature must not change max(warm, cold).
+
+        This is the fix for: 'when both channels are 100% and I click warm white,
+        the dimmer changes to 50%'.
+        """
+        brightness = BRIGHTNESS_RANGE[1]  # 100 %
+
+        # Both channels at 255 → midpoint temperature, 100 % brightness
+        warm_mired = color_temperature_kelvin_to_mired(CONF_DEFAULT_WARM_LIGHT_TEMPERATURE)
+        cold_mired = color_temperature_kelvin_to_mired(CONF_DEFAULT_COLD_LIGHT_TEMPERATURE)
+        mid_kelvin = color_temperature_mired_to_kelvin((warm_mired + cold_mired) / 2)
+        ww_mid, cw_mid = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            mid_kelvin,
+            brightness,
+        )
+        assert max(ww_mid, cw_mid) == brightness
+
+        # Switch to warm white → brightness must remain 100 %
+        ww_warm, cw_warm = compute_rgbw_channel_brightnesses(
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_COLD_LIGHT_TEMPERATURE,
+            CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
+            brightness,
+        )
+        assert max(ww_warm, cw_warm) == brightness
