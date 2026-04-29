@@ -336,6 +336,13 @@ class TestComputeRgbwChannelBrightnesses:
 class TestComputeBrightnessesFromCalibration:
     """Test compute_brightnesses_from_calibration."""
 
+    # Rounding differences between the calibration-point-based interpolation
+    # and the direct linear formula arise because default calibration points
+    # are snapped to integer Kelvin values, introducing ≤4 LSB of error.
+    _MAX_LINEAR_FORMULA_DEVIATION = 4
+    # Acceptable warm/cold ratio deviation when brightness changes (2 %).
+    _MAX_RATIO_DEVIATION = 0.02
+
     def _default_cal(self):
         return default_calibration_points(
             CONF_DEFAULT_WARM_LIGHT_TEMPERATURE,
@@ -373,10 +380,10 @@ class TestComputeBrightnessesFromCalibration:
                 temp,
                 BRIGHTNESS_RANGE[1],
             )
-            assert abs(ww_cal - ww_lin) <= 4, (
+            assert abs(ww_cal - ww_lin) <= self._MAX_LINEAR_FORMULA_DEVIATION, (
                 f"Warm mismatch at {temp}K: cal={ww_cal}, linear={ww_lin}"
             )
-            assert abs(cw_cal - cw_lin) <= 4, (
+            assert abs(cw_cal - cw_lin) <= self._MAX_LINEAR_FORMULA_DEVIATION, (
                 f"Cold mismatch at {temp}K: cal={cw_cal}, linear={cw_lin}"
             )
 
@@ -438,7 +445,7 @@ class TestComputeBrightnessesFromCalibration:
         )
         ratio_low = ww_low / (ww_low + cw_low)
         ratio_high = ww_high / (ww_high + cw_high)
-        assert abs(ratio_low - ratio_high) < 0.02
+        assert abs(ratio_low - ratio_high) < self._MAX_RATIO_DEVIATION
 
 
 class TestDefaultCalibrationPoints:
